@@ -33,7 +33,7 @@ jobs:
     - name: Install dependencies
       run: |
         apt-get update
-        apt-get install -y curl build-essential git ca-certificates
+        apt-get install -y curl build-essential git ca-certificates pkg-config libssl-dev
         curl https://sh.rustup.rs -sSf | sh -s -- -y
         . $HOME/.cargo/env
 
