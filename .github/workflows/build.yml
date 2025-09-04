@@ -2,9 +2,9 @@ name: Build Binaries
 
 on:
   push:
-    branches: [ main ]
+    branches: [ steam-vent ]
   pull_request:
-    branches: [ main ]
+    branches: [ steam-vent ]
   release:
     types: [ published ]
 
