@@ -16,7 +16,8 @@ permissions:
 
 jobs:
   build:
-    runs-on: ubuntu-latest
+    name: Build ${{ matrix.target }}
+    runs-on: ${{ matrix.os }}
     container:
       image: debian:12
     strategy:
@@ -26,7 +27,11 @@ jobs:
             target: x86_64-unknown-linux-gnu
             artifact_name: steam-auth
             asset_name: steam-auth-linux-x86_64
-
+          - os: windows-latest
+            target: x86_64-pc-windows-msvc
+            artifact_name: steam-auth.exe
+            asset_name: steam-auth-windows-x86_64.exe
+            
     steps:
     - uses: actions/checkout@v4
 
@@ -57,6 +62,10 @@ jobs:
       if: matrix.target == 'x86_64-unknown-linux-gnu'
       run: RUSTFLAGS="-C link-arg=-Wl,-rpath,\$ORIGIN" cargo build --release --target ${{ matrix.target }}
 
+    - name: Build (Windows)
+      if: matrix.target == 'x86_64-pc-windows-msvc'
+      run: cargo build --release --target ${{ matrix.target }}
+
     - name: Test
       run: cargo test --target ${{ matrix.target }}
 
@@ -69,6 +78,11 @@ jobs:
       if: matrix.target == 'x86_64-unknown-linux-gnu'
       run: |
         find ~/.cargo/registry/src -path "*/steamworks-sys-*/lib/steam/redistributable_bin/linux64/libsteam_api.so" -exec cp {} artifact/ \;
+    
+    - name: Bundle Steam library (Windows)  
+      if: matrix.target == 'x86_64-pc-windows-msvc'
+      run: |
+        Get-ChildItem -Path "$env:USERPROFILE\.cargo\registry\src" -Filter "steam_api64.dll" -Recurse | Where-Object { $_.FullName -like "*steamworks-sys-*\lib\steam\redistributable_bin\win64\*" } | ForEach-Object { Copy-Item $_.FullName "artifact\" }
 
     - name: Upload artifacts
       uses: actions/upload-artifact@v4
@@ -82,7 +96,12 @@ jobs:
         cd artifact
         tar -czf ../${{ matrix.asset_name }}.tar.gz *
         cd ..
-
+        
+    - name: Create release archive (Windows)
+      if: matrix.target == 'x86_64-pc-windows-msvc' && github.event_name == 'release'
+      run: |
+        Compress-Archive -Path artifact\* -DestinationPath ${{ matrix.asset_name }}.zip
+        
     - name: Upload to release (Linux)
       if: matrix.target == 'x86_64-unknown-linux-gnu' && github.event_name == 'release'
       env:
@@ -90,4 +109,13 @@ jobs:
       run: |
         gh release upload ${{ github.event.release.tag_name }} \
           ${{ matrix.asset_name }}.tar.gz \
+          --clobber
+          
+    - name: Upload to release (Windows)
+      if: matrix.target == 'x86_64-pc-windows-msvc' && github.event_name == 'release'
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      run: |
+        gh release upload ${{ github.event.release.tag_name }} `
+          ${{ matrix.asset_name }}.zip `
           --clobber
